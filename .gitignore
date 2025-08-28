@@ -41,3 +41,5 @@ out/
 .claude
 *.db
 *.vsix
+evemarketexplorer.db-wal
+evemarketexplorer.db-shm

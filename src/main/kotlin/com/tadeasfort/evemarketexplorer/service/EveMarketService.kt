@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import reactor.util.retry.Retry
+import java.time.Duration
 import java.time.LocalDateTime
 
 @Service
@@ -22,6 +24,7 @@ class EveMarketService(
 ) {
     private val logger = LoggerFactory.getLogger(EveMarketService::class.java)
     
+    
     fun refreshAllMarketData(): Mono<Void> {
         logger.info("Starting complete market data refresh with staging/latest pattern")
         
@@ -29,11 +32,23 @@ class EveMarketService(
             .flatMapMany { regionIds -> Flux.fromIterable(regionIds) }
             .flatMap({ regionId ->
                 refreshMarketOrdersForRegionWithStaging(regionId)
+                    .retryWhen(
+                        Retry.backoff(3, Duration.ofSeconds(1))
+                            .maxBackoff(Duration.ofSeconds(10))
+                            .filter { throwable ->
+                                throwable.message?.contains("database is locked") == true ||
+                                throwable.message?.contains("SQLITE_BUSY") == true
+                            }
+                            .doBeforeRetry { retrySignal ->
+                                logger.warn("Retrying database operation for region {} (attempt {}): {}", 
+                                    regionId, retrySignal.totalRetries() + 1, retrySignal.failure().message)
+                            }
+                    )
                     .onErrorResume { error ->
-                        logger.error("Failed to refresh market orders for region {}: {}", regionId, error.message)
+                        logger.error("Failed to refresh market orders for region {} after retries: {}", regionId, error.message)
                         Mono.empty()
                     }
-            }, 10) // Process 10 regions concurrently
+            }, 3) // Reduced from 10 to 3 regions concurrently to reduce database contention
             .then()
             .then(promoteAllStagingToLatest())
             .doOnSuccess { logger.info("Complete market orders refresh completed successfully") }
@@ -41,7 +56,7 @@ class EveMarketService(
     }
     
     private fun promoteAllStagingToLatest(): Mono<Void> {
-        return Mono.fromRunnable {
+        return Mono.fromCallable {
             logger.info("Promoting all staging data to latest")
             
             // Delete all LATEST data
@@ -52,6 +67,19 @@ class EveMarketService(
             marketOrderRepository.updateDataState(DataState.STAGING, DataState.LATEST)
             logger.info("Promoted all STAGING market orders to LATEST")
         }
+        .then()
+        .retryWhen(
+            Retry.backoff(5, Duration.ofSeconds(2))
+                .maxBackoff(Duration.ofSeconds(30))
+                .filter { throwable ->
+                    throwable.message?.contains("database is locked") == true ||
+                    throwable.message?.contains("SQLITE_BUSY") == true
+                }
+                .doBeforeRetry { retrySignal ->
+                    logger.warn("Retrying promotion operation (attempt {}): {}", 
+                        retrySignal.totalRetries() + 1, retrySignal.failure().message)
+                }
+        )
     }
     
     fun refreshMarketOrdersForRegion(regionId: Int): Mono<Void> {
@@ -72,10 +100,15 @@ class EveMarketService(
                 logger.info("Received {} market orders for region {} across all pages", orders.size, regionId)
                 
                 // Clear existing orders for the region with the specified state
-                if (dataState == DataState.STAGING) {
-                    marketOrderRepository.deleteByRegionIdAndDataState(regionId, DataState.STAGING)
-                } else {
-                    marketOrderRepository.deleteByRegionId(regionId) // Legacy support
+                try {
+                    if (dataState == DataState.STAGING) {
+                        marketOrderRepository.deleteByRegionIdAndDataState(regionId, DataState.STAGING)
+                    } else {
+                        marketOrderRepository.deleteByRegionId(regionId) // Legacy support
+                    }
+                } catch (e: Exception) {
+                    logger.error("Failed to delete existing orders for region {}: {}", regionId, e.message)
+                    throw e
                 }
                 
                 val region = regionRepository.findById(regionId).orElse(null)
@@ -114,9 +147,14 @@ class EveMarketService(
                             
                             // Batch save every 1000 orders
                             if (savedOrders.size >= 1000) {
-                                marketOrderRepository.saveAll(savedOrders)
-                                savedOrders.clear()
-                                logger.debug("Saved batch of market orders for region {} with state {}", regionId, dataState)
+                                try {
+                                    marketOrderRepository.saveAll(savedOrders)
+                                    savedOrders.clear()
+                                    logger.debug("Saved batch of market orders for region {} with state {}", regionId, dataState)
+                                } catch (e: Exception) {
+                                    logger.error("Failed to save batch of market orders for region {}: {}", regionId, e.message)
+                                    throw e
+                                }
                             }
                         } else {
                             invalidOrderCount++
@@ -130,7 +168,12 @@ class EveMarketService(
                 
                 // Save remaining orders
                 if (savedOrders.isNotEmpty()) {
-                    marketOrderRepository.saveAll(savedOrders)
+                    try {
+                        marketOrderRepository.saveAll(savedOrders)
+                    } catch (e: Exception) {
+                        logger.error("Failed to save remaining batch of market orders for region {}: {}", regionId, e.message)
+                        throw e
+                    }
                 }
                 
                 logger.info("Market orders processing summary for region {} with state {}:", regionId, dataState)
