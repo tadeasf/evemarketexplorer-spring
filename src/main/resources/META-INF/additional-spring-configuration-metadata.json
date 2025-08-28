@@ -1,0 +1,49 @@
+{
+    "properties": [
+        {
+            "name": "eve.esi.base-url",
+            "type": "java.lang.String",
+            "description": "A description for 'eve.esi.base-url'"
+        },
+        {
+            "name": "eve.esi.user-agent",
+            "type": "java.lang.String",
+            "description": "A description for 'eve.esi.user-agent'"
+        },
+        {
+            "name": "eve.esi.max-error-count",
+            "type": "java.lang.String",
+            "description": "A description for 'eve.esi.max-error-count'"
+        },
+        {
+            "name": "eve.esi.error-window-seconds",
+            "type": "java.lang.String",
+            "description": "A description for 'eve.esi.error-window-seconds'"
+        },
+        {
+            "name": "eve.client.max-connections",
+            "type": "java.lang.String",
+            "description": "A description for 'eve.client.max-connections'"
+        },
+        {
+            "name": "eve.client.connection-timeout",
+            "type": "java.lang.String",
+            "description": "A description for 'eve.client.connection-timeout'"
+        },
+        {
+            "name": "eve.client.read-timeout",
+            "type": "java.lang.String",
+            "description": "A description for 'eve.client.read-timeout'"
+        },
+        {
+            "name": "app.startup.fetch-initial-data",
+            "type": "java.lang.String",
+            "description": "A description for 'app.startup.fetch-initial-data'"
+        },
+        {
+            "name": "app.startup.fetch-initial-market-data",
+            "type": "java.lang.String",
+            "description": "A description for 'app.startup.fetch-initial-market-data'"
+        }
+    ]
+}

@@ -1,0 +1,19 @@
+services:
+  evemarketexplorer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: evemarketexplorer
+    ports:
+      - "13921:13921"
+    volumes:
+      - ./db:/app/db:Z
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:sqlite:/app/db/evemarketexplorer.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:13921/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
