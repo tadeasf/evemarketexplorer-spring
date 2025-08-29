@@ -56,30 +56,53 @@ class EveMarketService(
     }
     
     private fun promoteAllStagingToLatest(): Mono<Void> {
+        return Mono.fromCallable { regionRepository.findAllRegionIds() }
+            .flatMapMany { regionIds -> 
+                logger.info("Promoting staging data to latest for {} regions", regionIds.size)
+                Flux.fromIterable(regionIds).index()
+            }
+            .flatMap({ indexedRegionId ->
+                val index = indexedRegionId.t1
+                val regionId = indexedRegionId.t2
+                promoteRegionStagingToLatest(regionId)
+                    .doOnSuccess {
+                        if ((index + 1) % 10 == 0L || index == 0L) {
+                            logger.info("Promoted staging to latest for region {} ({} regions processed)", regionId, index + 1)
+                        }
+                    }
+                    .retryWhen(
+                        Retry.backoff(3, Duration.ofSeconds(1))
+                            .maxBackoff(Duration.ofSeconds(10))
+                            .filter { throwable ->
+                                throwable.message?.contains("database is locked") == true ||
+                                throwable.message?.contains("SQLITE_BUSY") == true
+                            }
+                            .doBeforeRetry { retrySignal ->
+                                logger.warn("Retrying promotion for region {} (attempt {}): {}", 
+                                    regionId, retrySignal.totalRetries() + 1, retrySignal.failure().message)
+                            }
+                    )
+                    .onErrorResume { error ->
+                        logger.error("Failed to promote staging to latest for region {} after retries: {}", regionId, error.message)
+                        Mono.empty()
+                    }
+            }, 5) // Process 5 regions concurrently to balance speed vs database load
+            .then()
+            .doOnSuccess { logger.info("All regional staging data promoted to latest successfully") }
+    }
+    
+    private fun promoteRegionStagingToLatest(regionId: Int): Mono<Void> {
         return Mono.fromCallable {
-            logger.info("Promoting all staging data to latest")
+            logger.debug("Promoting staging to latest for region {}", regionId)
             
-            // Delete all LATEST data
-            marketOrderRepository.deleteByDataState(DataState.LATEST)
-            logger.info("Deleted all LATEST market orders")
+            // Delete LATEST data for this region only
+            marketOrderRepository.deleteByRegionIdAndDataState(regionId, DataState.LATEST)
             
-            // Promote all STAGING to LATEST
-            marketOrderRepository.updateDataState(DataState.STAGING, DataState.LATEST)
-            logger.info("Promoted all STAGING market orders to LATEST")
-        }
-        .then()
-        .retryWhen(
-            Retry.backoff(5, Duration.ofSeconds(2))
-                .maxBackoff(Duration.ofSeconds(30))
-                .filter { throwable ->
-                    throwable.message?.contains("database is locked") == true ||
-                    throwable.message?.contains("SQLITE_BUSY") == true
-                }
-                .doBeforeRetry { retrySignal ->
-                    logger.warn("Retrying promotion operation (attempt {}): {}", 
-                        retrySignal.totalRetries() + 1, retrySignal.failure().message)
-                }
-        )
+            // Promote STAGING to LATEST for this region only
+            marketOrderRepository.updateDataStateByRegion(regionId, DataState.STAGING, DataState.LATEST)
+            
+            logger.debug("Successfully promoted staging to latest for region {}", regionId)
+        }.then()
     }
     
     fun refreshMarketOrdersForRegion(regionId: Int): Mono<Void> {
