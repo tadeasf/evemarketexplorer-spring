@@ -2,6 +2,7 @@ package com.tadeasfort.evemarketexplorer.repository
 
 import com.tadeasfort.evemarketexplorer.model.DataState
 import com.tadeasfort.evemarketexplorer.model.MarketOrder
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
@@ -63,4 +64,17 @@ interface MarketOrderRepository : JpaRepository<MarketOrder, Long> {
     @Transactional
     @Query("DELETE FROM MarketOrder o WHERE o.region.regionId = :regionId")
     fun deleteByRegionId(regionId: Int)
+    
+    // Enhanced query methods for frontend
+    @Query("SELECT o FROM MarketOrder o WHERE o.region.regionId = :regionId AND o.itemType.typeId = :typeId AND o.isBuyOrder = false AND o.dataState = 'LATEST' ORDER BY o.price ASC")
+    fun findSellOrdersByRegionAndType(regionId: Int, typeId: Int, pageable: Pageable): List<MarketOrder>
+    
+    @Query("SELECT o FROM MarketOrder o WHERE o.region.regionId = :regionId AND o.itemType.typeId = :typeId AND o.isBuyOrder = true AND o.dataState = 'LATEST' ORDER BY o.price DESC")
+    fun findBuyOrdersByRegionAndType(regionId: Int, typeId: Int, pageable: Pageable): List<MarketOrder>
+    
+    @Query("SELECT o FROM MarketOrder o WHERE o.itemType.typeId = :typeId AND o.isBuyOrder = false AND o.dataState = 'LATEST' ORDER BY o.price ASC")
+    fun findSellOrdersByType(typeId: Int, pageable: Pageable): List<MarketOrder>
+    
+    @Query("SELECT o FROM MarketOrder o WHERE o.itemType.typeId = :typeId AND o.isBuyOrder = true AND o.dataState = 'LATEST' ORDER BY o.price DESC")
+    fun findBuyOrdersByType(typeId: Int, pageable: Pageable): List<MarketOrder>
 }

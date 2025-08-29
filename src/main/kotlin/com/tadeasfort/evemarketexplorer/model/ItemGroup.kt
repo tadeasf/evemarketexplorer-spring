@@ -1,5 +1,6 @@
 package com.tadeasfort.evemarketexplorer.model
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
 import java.time.LocalDateTime
 
@@ -27,5 +28,6 @@ data class ItemGroup(
     val updatedAt: LocalDateTime = LocalDateTime.now(),
     
     @OneToMany(mappedBy = "group", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+    @JsonIgnore
     val types: List<ItemType> = emptyList()
 )

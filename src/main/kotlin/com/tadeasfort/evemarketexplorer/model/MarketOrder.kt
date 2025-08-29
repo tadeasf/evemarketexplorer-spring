@@ -18,7 +18,9 @@ enum class DataState {
         Index(name = "idx_market_orders_issued", columnList = "issued"),
         Index(name = "idx_market_orders_data_state", columnList = "data_state"),
         Index(name = "idx_market_orders_region_state", columnList = "region_id,data_state"),
-        Index(name = "idx_market_orders_region_type_state", columnList = "region_id,type_id,data_state")
+        Index(name = "idx_market_orders_region_type_state", columnList = "region_id,type_id,data_state"),
+        Index(name = "idx_market_orders_type_buy_price", columnList = "type_id,is_buy_order,price,data_state"),
+        Index(name = "idx_market_orders_region_type_buy_price", columnList = "region_id,type_id,is_buy_order,price,data_state")
     ]
 )
 data class MarketOrder(

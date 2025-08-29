@@ -1,5 +1,6 @@
 package com.tadeasfort.evemarketexplorer.model
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
 import java.time.LocalDateTime
 
@@ -23,5 +24,6 @@ data class Region(
     val updatedAt: LocalDateTime = LocalDateTime.now(),
     
     @OneToMany(mappedBy = "region", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+    @JsonIgnore
     val constellations: List<Constellation> = emptyList()
 )

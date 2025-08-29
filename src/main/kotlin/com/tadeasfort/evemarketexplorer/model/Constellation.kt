@@ -1,5 +1,6 @@
 package com.tadeasfort.evemarketexplorer.model
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
 import java.time.LocalDateTime
 
@@ -24,5 +25,6 @@ data class Constellation(
     val updatedAt: LocalDateTime = LocalDateTime.now(),
     
     @OneToMany(mappedBy = "constellation", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+    @JsonIgnore
     val systems: List<SolarSystem> = emptyList()
 )

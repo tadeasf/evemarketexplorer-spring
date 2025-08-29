@@ -290,4 +290,28 @@ class EveUniverseService(
                 logger.info("Item types refresh completed") 
             }
     }
+    
+    /**
+     * Resolves a location name based on location ID
+     * In EVE Online:
+     * - System IDs: 30000000+ range -> Solar System names
+     * - Station IDs: 60000000+ range -> Station names (fallback to system)
+     * - Structure IDs: Various ranges -> Structure names (fallback to system)
+     */
+    fun resolveLocationName(locationId: Long, systemId: Int?): String {
+        // If it's a system ID (30000000+ range), try to find the system directly
+        if (locationId >= 30000000L && locationId < 40000000L) {
+            val system = solarSystemRepository.findById(locationId.toInt()).orElse(null)
+            return system?.name ?: "Unknown System ($locationId)"
+        }
+        
+        // For stations/structures, try to resolve using the provided systemId
+        if (systemId != null) {
+            val system = solarSystemRepository.findById(systemId).orElse(null)
+            return system?.name ?: "Unknown System ($systemId)"
+        }
+        
+        // Fallback for unknown location types
+        return "Unknown Location ($locationId)"
+    }
 }
